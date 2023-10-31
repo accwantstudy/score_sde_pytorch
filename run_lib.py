@@ -127,8 +127,12 @@ def train(config, workdir):
     batch = torch.from_numpy(next(train_iter)['image']._numpy()).to(config.device).float()
     batch = batch.permute(0, 3, 1, 2)
     batch = scaler(batch)
+
+    if config.y_condition:
+      y = torch.from_numpy(next(train_iter)['label']._numpy()).to(config.device).float()
+
     # Execute one training step
-    loss = train_step_fn(state, batch)
+    loss = train_step_fn(state, batch, y)
     if step % config.training.log_freq == 0:
       logging.info("step: %d, training_loss: %.5e" % (step, loss.item()))
       writer.add_scalar("training_loss", loss, step)

@@ -70,7 +70,7 @@ def get_sde_loss_fn(sde, train, reduce_mean=True, continuous=True, likelihood_we
   """
   reduce_op = torch.mean if reduce_mean else lambda *args, **kwargs: 0.5 * torch.sum(*args, **kwargs)
 
-  def loss_fn(model, batch):
+  def loss_fn(model, batch, y= None):
     """Compute the loss function.
 
     Args:
@@ -85,7 +85,7 @@ def get_sde_loss_fn(sde, train, reduce_mean=True, continuous=True, likelihood_we
     z = torch.randn_like(batch)
     mean, std = sde.marginal_prob(batch, t)
     perturbed_data = mean + std[:, None, None, None] * z
-    score = score_fn(perturbed_data, t)
+    score = score_fn(perturbed_data, t, y)
 
     if not likelihood_weighting:
       losses = torch.square(score * std[:, None, None, None] + z)
@@ -174,7 +174,7 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
     else:
       raise ValueError(f"Discrete training for {sde.__class__.__name__} is not recommended.")
 
-  def step_fn(state, batch):
+  def step_fn(state, batch, y = None):
     """Running one step of training or evaluation.
 
     This function will undergo `jax.lax.scan` so that multiple steps can be pmapped and jit-compiled together
@@ -192,7 +192,7 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
     if train:
       optimizer = state['optimizer']
       optimizer.zero_grad()
-      loss = loss_fn(model, batch)
+      loss = loss_fn(model, batch, y)
       loss.backward()
       optimize_fn(optimizer, model.parameters(), step=state['step'])
       state['step'] += 1
@@ -202,7 +202,7 @@ def get_step_fn(sde, train, optimize_fn=None, reduce_mean=False, continuous=True
         ema = state['ema']
         ema.store(model.parameters())
         ema.copy_to(model.parameters())
-        loss = loss_fn(model, batch)
+        loss = loss_fn(model, batch, y)
         ema.restore(model.parameters())
 
     return loss
